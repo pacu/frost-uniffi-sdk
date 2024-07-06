@@ -1,0 +1,29 @@
+[package]
+name = "orchard-keys-uniffi"
+version = "0.0.0"
+edition = "2021"
+
+
+[lib]
+crate-type = ["lib","staticlib", "cdylib"]
+name = "orchard_keys_uniffi"
+
+
+[dependencies]
+uniffi = { workspace = true }
+thiserror = { workspace = true }
+reddsa = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+hex = { workspace = true }
+
+orchard = { git = "https://github.com/pacu/orchard.git", rev = "eb780479ec4e75a223e9c5b6f157093a6c73d6c2" }
+zcash_primitives = { version = "0.15" }
+zcash_protocol = { version = "0.1"}
+zip32 = { version = "0.1" }
+zcash_address = { version = "0.3" }
+[features]
+default = []
+
+[build-dependencies]
+uniffi = { workspace = true, features = ["build"] }

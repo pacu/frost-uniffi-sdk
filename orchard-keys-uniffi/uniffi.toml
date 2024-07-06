@@ -1,0 +1,8 @@
+## Custom UniFFI binding generation settings
+## See https://mozilla.github.io/uniffi-rs/swift/configuration.html.  
+#[bindings.kotlin]
+[bindings.swift]
+
+[bindings.go]
+package_name = "orchard_go_ffi"
+module_name = "orchard_go_ffi"
