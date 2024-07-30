@@ -7,6 +7,7 @@ use orchard::{
 };
 use zcash_address::unified::{Address, Encoding, Receiver};
 use zcash_primitives::zip32::AccountId;
+use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_protocol::consensus::{Network, NetworkConstants, NetworkType, Parameters};
 use zip32::Scope;
 
@@ -128,7 +129,10 @@ impl OrchardFullViewingKey {
     }
 
     fn string_encoded(&self) -> String {
-        "".to_string()
+        UnifiedFullViewingKey::new {
+            orchard: Some(self.fvk.clone()),
+            unknown: vec![]
+        }     
     }
 
     fn derive_address(&self) -> Result<OrchardAddress, OrchardKeyError> {
@@ -221,9 +225,9 @@ mod tests {
             .encode(&zcash_protocol::consensus::Network::TestNetwork.network_type());
 
         print!("{}", string);
-        // match orchard_fvk {
-        //     Ok(fvk) => assert!(true),
-        //     Err(e) => panic!("failed with error {:?}", e)
-        // }
+        match orchard_fvk {
+            Ok(fvk) => assert!(true),
+            Err(e) => panic!("failed with error {:?}", e)
+        }
     }
 }

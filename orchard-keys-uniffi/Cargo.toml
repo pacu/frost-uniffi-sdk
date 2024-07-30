@@ -17,11 +17,12 @@ serde_json = { workspace = true }
 rand = { workspace = true }
 hex = { workspace = true }
 
-orchard = { git = "https://github.com/pacu/orchard.git", rev = "eb780479ec4e75a223e9c5b6f157093a6c73d6c2" }
-zcash_primitives = { version = "0.15" }
-zcash_protocol = { version = "0.1"}
+orchard = { git = "https://github.com/pacu/orchard.git", rev = "96bda92e3ed689bdc2fda334b0712ec80d08012d", features = ["unstable-frost"] }
+zcash_primitives = { git = "https://github.com/zcash/librustzcash", rev = "7f7b685b99132505a0fe4ba588f329e3516e9669"}
+zcash_protocol = { git = "https://github.com/zcash/librustzcash", rev = "7f7b685b99132505a0fe4ba588f329e3516e9669" }
+zcash_keys = { git = "https://github.com/zcash/librustzcash", rev = "7f7b685b99132505a0fe4ba588f329e3516e9669", features = ["orchard"] }
 zip32 = { version = "0.1" }
-zcash_address = { version = "0.3" }
+zcash_address = { git = "https://github.com/zcash/librustzcash", rev = "7f7b685b99132505a0fe4ba588f329e3516e9669" }
 [features]
 default = []
 
