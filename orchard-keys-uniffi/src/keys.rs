@@ -1,14 +1,12 @@
 use uniffi;
 
-use std::{clone, error::Error, sync::Arc};
+use std::sync::Arc;
 
-use orchard::{
-    keys::{FullViewingKey, SpendValidatingKey, SpendingKey},
-};
+use orchard::keys::{FullViewingKey, SpendValidatingKey, SpendingKey};
 use zcash_address::unified::{Address, Encoding, Receiver};
-use zcash_primitives::zip32::AccountId;
 use zcash_keys::keys::UnifiedFullViewingKey;
-use zcash_protocol::consensus::{Network, NetworkConstants, NetworkType, Parameters};
+use zcash_primitives::zip32::AccountId;
+use zcash_protocol::consensus::{Network, NetworkConstants, NetworkType};
 use zip32::Scope;
 
 #[derive(uniffi::Enum, Clone, Debug)]
@@ -43,22 +41,18 @@ impl ZcashNetwork {
     }
 }
 
-#[derive(uniffi::Error, Debug)]
+#[derive(uniffi::Error, Debug, Clone)]
 pub enum OrchardKeyError {
-    KeyDerivationError{
-        message: String
-    },
+    KeyDerivationError { message: String },
     SerializationError,
     DeserializationError,
-    OtherError {
-        error_message: String
-    },
+    OtherError { error_message: String },
 }
 
 #[derive(uniffi::Object)]
 pub struct OrchardAddress {
     network: ZcashNetwork,
-    addr: Arc<Address>,
+    addr: Address,
 }
 
 impl OrchardAddress {
@@ -68,7 +62,7 @@ impl OrchardAddress {
 
         Ok(OrchardAddress {
             network: ZcashNetwork::new_from_network_type(network),
-            addr: Arc::new(addr),
+            addr: addr,
         })
     }
     fn string_encoded(&self) -> String {
@@ -79,7 +73,7 @@ impl OrchardAddress {
 #[derive(uniffi::Object, Clone)]
 pub struct OrchardFullViewingKey {
     network: ZcashNetwork,
-    fvk: Arc<FullViewingKey>,
+    fvk: FullViewingKey,
 }
 
 impl OrchardFullViewingKey {
@@ -95,12 +89,13 @@ impl OrchardFullViewingKey {
         let sk = SpendingKey::from_zip32_seed(
             zip_32_seed,
             network.coin_type(),
-            AccountId::try_from(0)
-                .map_err(|e| {
-                    OrchardKeyError::KeyDerivationError { message: e.to_string() }
-        })?,
+            AccountId::try_from(0).map_err(|e| OrchardKeyError::KeyDerivationError {
+                message: e.to_string(),
+            })?,
         )
-        .map_err(|e| OrchardKeyError::KeyDerivationError{ message: e.to_string() })?;
+        .map_err(|e| OrchardKeyError::KeyDerivationError {
+            message: e.to_string(),
+        })?;
 
         // derive the FVK from the random spending key.
         let random_fvk = FullViewingKey::from(&sk);
@@ -120,19 +115,19 @@ impl OrchardFullViewingKey {
         match frosty_fvk {
             Some(f) => Ok(OrchardFullViewingKey {
                 network: ZcashNetwork::new(network),
-                fvk: Arc::new(f),
+                fvk: f,
             }),
             None => Err(OrchardKeyError::KeyDerivationError {
-               message: "could not derive FROST fvk from resulting bytes".to_string(),
+                message: "could not derive FROST fvk from resulting bytes".to_string(),
             }),
         }
     }
 
-    fn string_encoded(&self) -> String {
-        UnifiedFullViewingKey::new {
-            orchard: Some(self.fvk.clone()),
-            unknown: vec![]
-        }     
+    fn string_encoded(&self) -> Result<String, OrchardKeyError> {
+        
+        let ufvk = UnifiedFullViewingKey::from_orchard_fvk(
+            self.fvk as orchard::keys::FullViewingKey
+        )?;
     }
 
     fn derive_address(&self) -> Result<OrchardAddress, OrchardKeyError> {
@@ -145,11 +140,10 @@ impl OrchardFullViewingKey {
 
         Ok(OrchardAddress {
             network: self.network.clone(),
-            addr: Arc::new(ua),
+            addr: ua,
         })
     }
 }
-
 
 #[derive(uniffi::Object)]
 pub struct OrchardSpendValidatingKey {
@@ -214,7 +208,11 @@ mod tests {
             zcash_protocol::consensus::Network::TestNetwork,
         );
 
-        let s = orchard_fvk.unwrap().fvk.address_at(0u64, Scope::External);
+        let s = orchard_fvk
+            .clone()
+            .unwrap()
+            .fvk
+            .address_at(0u64, Scope::External);
 
         let orchard_receiver = Receiver::Orchard(s.to_raw_address_bytes());
 
@@ -227,7 +225,7 @@ mod tests {
         print!("{}", string);
         match orchard_fvk {
             Ok(fvk) => assert!(true),
-            Err(e) => panic!("failed with error {:?}", e)
+            Err(e) => panic!("failed with error {:?}", e),
         }
     }
 }

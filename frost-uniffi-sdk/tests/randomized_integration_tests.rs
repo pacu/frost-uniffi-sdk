@@ -92,7 +92,7 @@ fn test_randomized_trusted_from_configuration_with_secret() {
             &frost_randomizer,
         )
         .unwrap();
-        
+
         signature_shares.insert(participant_identifier.clone(), signature_share);
     }
 
