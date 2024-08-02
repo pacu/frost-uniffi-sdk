@@ -13,6 +13,7 @@ use zip32::Scope;
 pub enum ZcashNetwork {
     Mainnet,
     Testnet,
+    #[cfg(feature = "regtest")]
     Regtest,
 }
 
@@ -21,10 +22,19 @@ impl ZcashNetwork {
         match self {
             Self::Mainnet => NetworkType::Main,
             Self::Testnet => NetworkType::Test,
+            #[cfg(feature = "regtest")]
             Self::Regtest => NetworkType::Regtest,
         }
     }
 
+    fn to_network_parameters(&self) -> Network {
+        match self {
+            Self::Mainnet => Network::MainNetwork,
+            Self::Testnet => Network::TestNetwork,
+            #[cfg(feature = "regtest")]
+            Self::Regtest => Network::TestNetwork,
+        }
+    }
     fn new(network: Network) -> Self {
         match network {
             Network::MainNetwork => Self::Mainnet,
@@ -36,7 +46,10 @@ impl ZcashNetwork {
         match network_type {
             NetworkType::Main => Self::Mainnet,
             NetworkType::Test => Self::Testnet,
+            #[cfg(not(feature = "regtest"))]
             NetworkType::Regtest => Self::Testnet,
+            #[cfg(feature = "regtest")]
+            NetworkType::Regtest => Self::Regtest,
         }
     }
 }
@@ -126,8 +139,11 @@ impl OrchardFullViewingKey {
     fn string_encoded(&self) -> Result<String, OrchardKeyError> {
         
         let ufvk = UnifiedFullViewingKey::from_orchard_fvk(
-            self.fvk as orchard::keys::FullViewingKey
-        )?;
+            self.fvk.clone() as orchard::keys::FullViewingKey
+        )
+        .map_err(|e| OrchardKeyError::KeyDerivationError { message: e.to_string() })?;
+
+        Ok(ufvk.encode(&self.network.to_network_parameters()))
     }
 
     fn derive_address(&self) -> Result<OrchardAddress, OrchardKeyError> {

@@ -18,13 +18,13 @@ rand = { workspace = true }
 hex = { workspace = true }
 
 orchard = { git = "https://github.com/pacu/orchard.git", rev = "d4210e7f77b7a0ce85cfd9fb50a5e45f5e1ed5da", features = ["unstable-frost"] }
-zcash_primitives = { git = "https://github.com/pacu/librustzcash.git", rev = "22dd30f9c97f2bfa477355e99a8e54707f2c3db4" }
-zcash_protocol = { git = "https://github.com/pacu/librustzcash.git", rev = "22dd30f9c97f2bfa477355e99a8e54707f2c3db4" }
-zcash_keys = { git = "https://github.com/pacu/librustzcash.git", rev = "22dd30f9c97f2bfa477355e99a8e54707f2c3db4", features = ["orchard", "unstable-frost"] }
+zcash_primitives = { path = "/Users/pacu/Repos/Zcash/librustzcash/zcash_primitives" }
+zcash_protocol = { path = "/Users/pacu/Repos/Zcash/librustzcash/components/zcash_protocol" }
+zcash_keys = { path = "/Users/pacu/Repos/Zcash/librustzcash/zcash_keys", features = ["orchard", "unstable-frost"] }
 zip32 = { version = "0.1" }
-zcash_address =  { git = "https://github.com/pacu/librustzcash.git", rev = "22dd30f9c97f2bfa477355e99a8e54707f2c3db4" }
+zcash_address =  { path = "/Users/pacu/Repos/Zcash/librustzcash/components/zcash_address" }
 [features]
 default = []
-
+regtest = []
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }
