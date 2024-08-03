@@ -1,8 +1,10 @@
 use uniffi;
-
+use bip0039::{English, Mnemonic};
 use std::sync::Arc;
 
-use orchard::keys::{FullViewingKey, SpendValidatingKey, SpendingKey};
+use orchard::keys::{
+    CommitIvkRandomness, FullViewingKey, NullifierDerivingKey, SpendValidatingKey, SpendingKey,
+};
 use zcash_address::unified::{Address, Encoding, Receiver};
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::zip32::AccountId;
@@ -62,7 +64,36 @@ pub enum OrchardKeyError {
     OtherError { error_message: String },
 }
 
+/// This responds to Backup and DKG requirements
+/// for FROST.
+/// 
+/// - Note: See [FROST Book backup section](https://frost.zfnd.org/zcash/technical-details.html#backing-up-key-shares)
+#[derive(uniffi::Record, Clone)]
+pub struct OrchardKeyParts {
+    pub nk: Vec<u8>,
+    pub rivk: Vec<u8>,
+}
+
+impl OrchardKeyParts {
+    fn random(network: Network) -> Result<OrchardKeyParts, OrchardKeyError> {
+        let mnemonic = Mnemonic::<English>::generate(bip0039::Count::Words24);
+        let random_entropy = mnemonic.entropy();
+        let spending_key = SpendingKey::from_zip32_seed(random_entropy, network.coin_type(), AccountId::ZERO)
+            .map_err(|e| OrchardKeyError::KeyDerivationError { message: e.to_string() })?;
+
+        let nk = NullifierDerivingKey::from(&spending_key);
+        let rivk = CommitIvkRandomness::from(&spending_key);
+
+        Ok(
+            OrchardKeyParts {
+                nk: nk.to_bytes().to_vec(),
+                rivk: rivk.to_bytes().to_vec(),
+            }
+        )
+    }   
+}
 #[derive(uniffi::Object)]
+
 pub struct OrchardAddress {
     network: ZcashNetwork,
     addr: Address,
@@ -78,6 +109,7 @@ impl OrchardAddress {
             addr: addr,
         })
     }
+
     fn string_encoded(&self) -> String {
         self.addr.encode(&self.network.to_network_type())
     }
@@ -90,6 +122,23 @@ pub struct OrchardFullViewingKey {
 }
 
 impl OrchardFullViewingKey {
+    /// Creates an [`OrchardFullViewingKey`] from its composing parts.
+    ///
+    /// - Note: See [FROST Book backup section](https://frost.zfnd.org/zcash/technical-details.html#backing-up-key-shares)
+    fn new_from_parts(
+        ak: &SpendValidatingKey,
+        nk: &NullifierDerivingKey,
+        rivk: &CommitIvkRandomness,
+        network: Network,
+    ) -> Result<OrchardFullViewingKey, OrchardKeyError> {
+        let fvk = FullViewingKey::from_checked_parts(ak.clone(), nk.clone(), rivk.clone());
+
+        Ok(OrchardFullViewingKey {
+            network: ZcashNetwork::new(network),
+            fvk: fvk,
+        })
+    }
+
     /// Creates a new FullViewingKey from a ZIP-32 Seed and validating key
     /// using the `Network` coin type on `AccountId(0u32)`
     /// see https://frost.zfnd.org/zcash/technical-details.html for more
@@ -136,16 +185,39 @@ impl OrchardFullViewingKey {
         }
     }
 
-    fn string_encoded(&self) -> Result<String, OrchardKeyError> {
-        
+    fn decode(
+        string_enconded: String,
+        network: Network,
+    ) -> Result<OrchardFullViewingKey, OrchardKeyError> {
+        let ufvk = UnifiedFullViewingKey::decode(&network, &string_enconded)
+            .map_err(|_| OrchardKeyError::DeserializationError)?;
+
+        match ufvk.orchard() {
+            Some(viewing_key) => {
+                let orchard_vk = OrchardFullViewingKey {
+                    fvk: viewing_key.clone(),
+                    network: ZcashNetwork::new(network),
+                };
+                Ok(orchard_vk)
+            }
+            None => Err(OrchardKeyError::KeyDerivationError {
+                message: "No Orchard key on Unified Viewing key".to_string(),
+            }),
+        }
+    }
+
+    fn encode(&self) -> Result<String, OrchardKeyError> {
         let ufvk = UnifiedFullViewingKey::from_orchard_fvk(
             self.fvk.clone() as orchard::keys::FullViewingKey
         )
-        .map_err(|e| OrchardKeyError::KeyDerivationError { message: e.to_string() })?;
+        .map_err(|e| OrchardKeyError::KeyDerivationError {
+            message: e.to_string(),
+        })?;
 
         Ok(ufvk.encode(&self.network.to_network_parameters()))
     }
 
+    /// derives external address 0 of this Orchard Full viewing key.
     fn derive_address(&self) -> Result<OrchardAddress, OrchardKeyError> {
         let s = self.fvk.address_at(0u64, Scope::External);
 
