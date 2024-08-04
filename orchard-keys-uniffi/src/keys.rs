@@ -3,7 +3,7 @@ use bip0039::{English, Mnemonic};
 use std::sync::Arc;
 
 use orchard::keys::{
-    CommitIvkRandomness, FullViewingKey, NullifierDerivingKey, SpendValidatingKey, SpendingKey,
+    CommitIvkRandomness, FullViewingKey, NullifierDerivingKey, SpendAuthorizingKey, SpendValidatingKey, SpendingKey
 };
 use zcash_address::unified::{Address, Encoding, Receiver};
 use zcash_keys::keys::UnifiedFullViewingKey;
@@ -249,8 +249,6 @@ pub struct OrchardSpendValidatingKey {
     key: SpendValidatingKey,
 }
 
-pub struct OrchardSpendAuthorizingKey {}
-
 #[uniffi::export]
 impl OrchardSpendValidatingKey {
     #[uniffi::constructor]
@@ -265,14 +263,13 @@ impl OrchardSpendValidatingKey {
 
     }
 
+    /// Serialized the [`OrchardSpendValidatingKey`] into bytes for 
+    /// backup purposes.
+    /// - Note: See [ZF FROST Book - Technical Details](https://frost.zfnd.org/zcash/technical-details.html)
+    /// to deserialize use the `OrchardSpendValidatingKey::from_bytes`
+    /// constructor
     pub fn to_bytes(&self) -> Vec<u8> {
         self.key.to_bytes().to_vec()
-    }
-}
-
-impl OrchardSpendAuthorizingKey {
-    fn from_bytes(bytes: &[u8]) -> Result<OrchardSpendAuthorizingKey, OrchardKeyError> {
-        Err(OrchardKeyError::DeserializationError)
     }
 }
 
@@ -297,6 +294,32 @@ impl OrchardNullifierDerivingKey {
         self.nk.to_bytes().to_vec()
     }
 }
+
+#[uniffi::Object]
+pub struct OrchardCommitIvkRandomness {
+    rivk: CommitIvkRandomness
+}
+
+impl OrchardCommitIvkRandomness {
+    #[uniffi::constructor]
+    /// Creates a `rivk` from a sequence of bytes. Returns [`OrchardKeyError::DeserializationError`]
+    /// if these bytes can't be deserialized into a valid `rivk`
+    pub fn new(bytes: Vec<u8>) -> Result<Arc<OrchardCommitIvkRandomness>, OrchardKeyError> {
+        match CommitIvkRandomness::from_bytes(&bytes) {
+            Some(rivk) => {
+                Ok(Arc::new(OrchardCommitIvkRandomness {
+                    rivk
+                }))
+            }, 
+            None => Err(OrchardKeyError::DeserializationError)
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.rivk.to_bytes().to_vec()
+    }
+}
+
 mod tests {
     use zcash_address::{
         unified::{Encoding, Receiver},
