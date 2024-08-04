@@ -1,9 +1,10 @@
-use uniffi::{self, constructor};
 use bip0039::{English, Mnemonic};
 use std::sync::Arc;
+use uniffi::{self, constructor};
 
 use orchard::keys::{
-    CommitIvkRandomness, FullViewingKey, NullifierDerivingKey, SpendAuthorizingKey, SpendValidatingKey, SpendingKey
+    CommitIvkRandomness, FullViewingKey, NullifierDerivingKey, SpendAuthorizingKey,
+    SpendValidatingKey, SpendingKey,
 };
 use zcash_address::unified::{Address, Encoding, Receiver};
 use zcash_keys::keys::UnifiedFullViewingKey;
@@ -69,34 +70,47 @@ pub enum OrchardKeyError {
 }
 
 /// This responds to Backup and DKG requirements
-/// for FROST.
-/// 
+/// for FROST. 
+///
 /// - Note: See [FROST Book backup section](https://frost.zfnd.org/zcash/technical-details.html#backing-up-key-shares)
-#[derive(uniffi::Record, Clone)]
+#[derive(uniffi::Object, Clone)]
 pub struct OrchardKeyParts {
     pub nk: Vec<u8>,
     pub rivk: Vec<u8>,
 }
 
+#[uniffi::export]
 impl OrchardKeyParts {
-    fn random(network: Network) -> Result<OrchardKeyParts, OrchardKeyError> {
+
+    /// Creates a Random `nk` and `rivk` from a random Spending Key 
+    /// originated from a random 24-word Mnemonic seed which is tossed
+    /// away. 
+    /// This responds to Backup and DKG requirements
+    /// for FROST. 
+    ///
+    /// - Note: See [FROST Book backup section](https://frost.zfnd.org/zcash/technical-details.html#backing-up-key-shares)
+    #[uniffi::constructor]
+    fn random(network: ZcashNetwork) -> Result<Arc<OrchardKeyParts>, OrchardKeyError> {
         let mnemonic = Mnemonic::<English>::generate(bip0039::Count::Words24);
         let random_entropy = mnemonic.entropy();
-        let spending_key = SpendingKey::from_zip32_seed(random_entropy, network.coin_type(), AccountId::ZERO)
-            .map_err(|e| OrchardKeyError::KeyDerivationError { message: e.to_string() })?;
+        let spending_key =
+            SpendingKey::from_zip32_seed(random_entropy, network.to_network_parameters().coin_type(), AccountId::ZERO)
+                .map_err(|e| OrchardKeyError::KeyDerivationError {
+                    message: e.to_string(),
+                })?;
 
         let nk = NullifierDerivingKey::from(&spending_key);
         let rivk = CommitIvkRandomness::from(&spending_key);
 
-        Ok(
-            OrchardKeyParts {
-                nk: nk.to_bytes().to_vec(),
-                rivk: rivk.to_bytes().to_vec(),
-            }
-        )
-    }   
+        Ok(Arc::new(OrchardKeyParts {
+            nk: nk.to_bytes().to_vec(),
+            rivk: rivk.to_bytes().to_vec(),
+        }))
+    }
 }
 
+
+/// An Zcash Orchard Address and its associated network type.
 #[derive(uniffi::Object)]
 pub struct OrchardAddress {
     network: ZcashNetwork,
@@ -105,8 +119,11 @@ pub struct OrchardAddress {
 
 #[uniffi::export]
 impl OrchardAddress {
+    /// Creates an [`OrchardAddress`] from its string-encoded form
+    /// If the string is invalid `Err(OrchardKeyError::DeserializationError)`
+    /// is returned in the Result.
     #[uniffi::constructor]
-    fn new_from_string(string: String) -> Result<Arc<OrchardAddress>, OrchardKeyError> {
+    pub fn new_from_string(string: String) -> Result<Arc<OrchardAddress>, OrchardKeyError> {
         let (network, addr) = zcash_address::unified::Address::decode(&string)
             .map_err(|_| OrchardKeyError::DeserializationError)?;
 
@@ -116,11 +133,15 @@ impl OrchardAddress {
         }))
     }
 
-    fn string_encoded(&self) -> String {
+    /// Returns the string-encoded form of this Orchard Address (A
+    /// Unified Address containing only the orchard receiver.)
+    pub fn string_encoded(&self) -> String {
         self.addr.encode(&self.network.to_network_type())
     }
 }
 
+/// A UnifiedViewingKey containing only an Orchard component and
+/// its associated network constant.
 #[derive(uniffi::Object, Clone)]
 pub struct OrchardFullViewingKey {
     network: ZcashNetwork,
@@ -133,7 +154,7 @@ impl OrchardFullViewingKey {
     /// see https://frost.zfnd.org/zcash/technical-details.html for more
     /// information.
     #[uniffi::constructor]
-    fn new_from_validating_key_and_seed(
+    pub fn new_from_validating_key_and_seed(
         validating_key: &OrchardSpendValidatingKey,
         zip_32_seed: Vec<u8>,
         network: ZcashNetwork,
@@ -176,13 +197,32 @@ impl OrchardFullViewingKey {
         }
     }
 
+    /// Creates an [`OrchardFullViewingKey`] from its checked composing parts
+    /// and its associated Network constant. 
     #[uniffi::constructor]
-    fn decode(
+    pub fn new_from_checked_parts(
+        ak: Arc<OrchardSpendValidatingKey>,
+        nk: Arc<OrchardNullifierDerivingKey>,
+        rivk: Arc<OrchardCommitIvkRandomness>,
+        network: ZcashNetwork,
+    ) -> Result<Arc<OrchardFullViewingKey>, OrchardKeyError> {
+        let ufvk =
+            Self::new_from_parts(&ak.key, &nk.nk, &rivk.rivk, network.to_network_parameters())?;
+
+        Ok(Arc::new(ufvk))
+    }
+
+    /// Decodes a [`OrchardFullViewingKey`] from its Unified Full Viewing Key
+    /// string-encoded format. If this operation fails, it returns
+    /// `Err(OrchardKeyError::DeserializationError)`
+    #[uniffi::constructor]
+    pub fn decode(
         string_enconded: String,
         network: ZcashNetwork,
     ) -> Result<Arc<OrchardFullViewingKey>, OrchardKeyError> {
-        let ufvk = UnifiedFullViewingKey::decode(&network.to_network_parameters(), &string_enconded)
-            .map_err(|_| OrchardKeyError::DeserializationError)?;
+        let ufvk =
+            UnifiedFullViewingKey::decode(&network.to_network_parameters(), &string_enconded)
+                .map_err(|_| OrchardKeyError::DeserializationError)?;
 
         match ufvk.orchard() {
             Some(viewing_key) => {
@@ -198,6 +238,11 @@ impl OrchardFullViewingKey {
         }
     }
 
+    /// Encodes a [`OrchardFullViewingKey`] to its Unified Full Viewing Key
+    /// string-encoded format. If this operation fails, it returns
+    /// `Err(OrchardKeyError::DeserializationError)`. This should be straight 
+    /// forward and an error thrown could indicate another kind of issue like a
+    /// PEBKAC.
     fn encode(&self) -> Result<String, OrchardKeyError> {
         let ufvk = UnifiedFullViewingKey::from_orchard_fvk(
             self.fvk.clone() as orchard::keys::FullViewingKey
@@ -223,6 +268,33 @@ impl OrchardFullViewingKey {
             addr: ua,
         }))
     }
+
+    // Returns the [`OrchardNullifierDerivingKey`] component of this FVK
+    pub fn nk(&self) -> Arc<OrchardNullifierDerivingKey> {
+        let nk = OrchardNullifierDerivingKey {
+            nk: self.fvk.nk().clone()
+        };
+
+        Arc::new(nk)
+    }
+
+    /// Returns the External Scope of this FVK
+    pub fn rivk(&self) -> Arc<OrchardCommitIvkRandomness> {
+        let rivk = OrchardCommitIvkRandomness {
+            rivk: self.fvk.rivk(Scope::External)
+        };
+
+        Arc::new(rivk)
+    }
+
+    /// Returns the Spend Validating Key component of this Orchard FVK
+    pub fn ak(&self) -> Arc<OrchardSpendValidatingKey> {
+        let ak = OrchardSpendValidatingKey {
+            key: self.fvk.ak().clone()
+        };
+
+        Arc::new(ak)
+    }
 }
 
 impl OrchardFullViewingKey {
@@ -244,6 +316,8 @@ impl OrchardFullViewingKey {
     }
 }
 
+/// The `ak` component of an Orchard Full Viewing key. This shall be 
+/// derived from the Spend Authorizing Key `ask`
 #[derive(uniffi::Object)]
 pub struct OrchardSpendValidatingKey {
     key: SpendValidatingKey,
@@ -251,19 +325,20 @@ pub struct OrchardSpendValidatingKey {
 
 #[uniffi::export]
 impl OrchardSpendValidatingKey {
+    /// Deserialized the [`OrchardSpendValidatingKey`] into bytes for
+    /// backup purposes.
+    /// - Note: See [ZF FROST Book - Technical Details](https://frost.zfnd.org/zcash/technical-details.html)
+    /// to serialize use the `OrchardSpendValidatingKey::to_bytes`
+    /// constructor
     #[uniffi::constructor]
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Arc<OrchardSpendValidatingKey>, OrchardKeyError> {
         match SpendValidatingKey::from_bytes(&bytes) {
-            Some(ak) => Ok(Arc::new(OrchardSpendValidatingKey {
-                key: ak
-            }
-        )),
-            None => Err(OrchardKeyError::DeserializationError)
+            Some(ak) => Ok(Arc::new(OrchardSpendValidatingKey { key: ak })),
+            None => Err(OrchardKeyError::DeserializationError),
         }
-
     }
 
-    /// Serialized the [`OrchardSpendValidatingKey`] into bytes for 
+    /// Serialized the [`OrchardSpendValidatingKey`] into bytes for
     /// backup purposes.
     /// - Note: See [ZF FROST Book - Technical Details](https://frost.zfnd.org/zcash/technical-details.html)
     /// to deserialize use the `OrchardSpendValidatingKey::from_bytes`
@@ -273,45 +348,52 @@ impl OrchardSpendValidatingKey {
     }
 }
 
+
+/// The Orchard Nullifier Deriving Key component of an
+/// Orchard full viewing key. This is intended for key backup 
+/// purposes.
+/// - Note: See [ZF FROST Book - Technical Details](https://frost.zfnd.org/zcash/technical-details.html)
 #[derive(uniffi::Object)]
-struct OrchardNullifierDerivingKey {
-    nk: NullifierDerivingKey
+pub struct OrchardNullifierDerivingKey {
+    nk: NullifierDerivingKey,
 }
 
 #[uniffi::export]
 impl OrchardNullifierDerivingKey {
+    /// Creates an [`OrchardNullifierDerivingKey`] from a sequence of bytes.
+    /// If the byte sequence is not suitable for doing so, it will return an
+    /// [`Err(OrchardKeyError::DeserializationError)`]
     #[uniffi::constructor]
     fn new(bytes: Vec<u8>) -> Result<Arc<Self>, OrchardKeyError> {
         match NullifierDerivingKey::from_bytes(&bytes) {
-            Some(nk) => Ok(Arc::new(OrchardNullifierDerivingKey {
-                nk
-            })),
-            None => Err(OrchardKeyError::DeserializationError)
+            Some(nk) => Ok(Arc::new(OrchardNullifierDerivingKey { nk })),
+            None => Err(OrchardKeyError::DeserializationError),
         }
     }
 
-    fn to_bytes(&self) -> Vec<u8> {
+    /// Serializes [`OrchardNullifierDerivingKey`] to a sequence of bytes.
+    pub fn to_bytes(&self) -> Vec<u8> {
         self.nk.to_bytes().to_vec()
     }
 }
 
-#[uniffi::Object]
+/// The `rivk` component of an Orchard Full Viewing Key.
+///  This is intended for key backup purposes.
+///- Note: See [ZF FROST Book - Technical Details](https://frost.zfnd.org/zcash/technical-details.html)
+#[derive(uniffi::Object, Clone)]
 pub struct OrchardCommitIvkRandomness {
-    rivk: CommitIvkRandomness
+    rivk: CommitIvkRandomness,
 }
 
+#[uniffi::export]
 impl OrchardCommitIvkRandomness {
     #[uniffi::constructor]
     /// Creates a `rivk` from a sequence of bytes. Returns [`OrchardKeyError::DeserializationError`]
     /// if these bytes can't be deserialized into a valid `rivk`
     pub fn new(bytes: Vec<u8>) -> Result<Arc<OrchardCommitIvkRandomness>, OrchardKeyError> {
         match CommitIvkRandomness::from_bytes(&bytes) {
-            Some(rivk) => {
-                Ok(Arc::new(OrchardCommitIvkRandomness {
-                    rivk
-                }))
-            }, 
-            None => Err(OrchardKeyError::DeserializationError)
+            Some(rivk) => Ok(Arc::new(OrchardCommitIvkRandomness { rivk })),
+            None => Err(OrchardKeyError::DeserializationError),
         }
     }
 
