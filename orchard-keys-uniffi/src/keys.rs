@@ -1,9 +1,9 @@
 use bip0039::{English, Mnemonic};
 use std::sync::Arc;
-use uniffi::{self, constructor};
+use uniffi::{self};
 
 use orchard::keys::{
-    CommitIvkRandomness, FullViewingKey, NullifierDerivingKey, SpendAuthorizingKey,
+    CommitIvkRandomness, FullViewingKey, NullifierDerivingKey,
     SpendValidatingKey, SpendingKey,
 };
 use zcash_address::unified::{Address, Encoding, Receiver};
@@ -294,7 +294,7 @@ impl OrchardFullViewingKey {
         };
 
         Arc::new(ak)
-    }
+    }   
 }
 
 impl OrchardFullViewingKey {
@@ -459,9 +459,8 @@ mod tests {
             .unwrap()
             .encode(&zcash_protocol::consensus::Network::TestNetwork.network_type());
 
-        print!("{}", string);
         match orchard_fvk {
-            Ok(fvk) => assert!(true),
+            Ok(_) => assert!(true),
             Err(e) => panic!("failed with error {:?}", e),
         }
     }
