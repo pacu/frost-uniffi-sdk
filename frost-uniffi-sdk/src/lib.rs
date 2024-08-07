@@ -10,6 +10,7 @@ pub mod participant;
 pub mod randomized;
 pub mod serialization;
 pub mod trusted_dealer;
+pub mod orchard;
 use crate::trusted_dealer::{trusted_dealer_keygen, trusted_dealer_keygen_from_configuration};
 
 use frost_core::{
