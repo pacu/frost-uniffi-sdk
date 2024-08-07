@@ -14,9 +14,15 @@ let package = Package(
         .library(
             name: "FrostSwiftFFI",
             targets: ["FrostSwiftFFI"]
+        ),
+        .library(
+            name: "OrchardSwiftFFI",
+            targets: ["OrchardSwiftFFI"]
         )
     ],
-    dependencies: [ ],
+    dependencies: [
+        .package(url: "https://github.com/orchetect/SwiftRadix", from: "1.3.0")
+    ],
     targets: [
         .target(
             name: "FrostSwift",
@@ -33,13 +39,23 @@ let package = Package(
         ),
         .testTarget(
             name: "NotRedPallasTests",
-            dependencies: ["FrostSwiftFFI"],
+            dependencies: [
+                "FrostSwiftFFI",
+            ],
             path: "FrostSwift/Tests/FrostSwiftFFI"
         ),
         .testTarget(
             name: "FrostTests",
             dependencies: ["FrostSwift"],
             path: "FrostSwift/Tests/FrostSwift"
+        ),
+        .testTarget(
+            name: "OrchardSwiftFFITests",
+            dependencies: [
+                "FrostSwiftFFI",
+                "SwiftRadix"
+            ],
+            path: "FrostSwift/Tests/OrchardSwiftFFI"
         )
     ]
 )

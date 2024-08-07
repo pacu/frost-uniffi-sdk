@@ -1,5 +1,5 @@
 [workspace]
-members = ["uniffi-bindgen", "frost-uniffi-sdk", "orchard-keys-uniffi"]
+members = ["uniffi-bindgen", "frost-uniffi-sdk"]
 resolver = "2"
 
 [workspace.dependencies]

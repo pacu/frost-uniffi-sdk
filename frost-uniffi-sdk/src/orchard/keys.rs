@@ -410,7 +410,7 @@ mod tests {
     use zcash_protocol::consensus::Parameters;
     use zip32::Scope;
 
-    use crate::keys::ZcashNetwork;
+    use crate::orchard::ZcashNetwork;
 
     use super::{OrchardFullViewingKey, OrchardSpendValidatingKey};
 
