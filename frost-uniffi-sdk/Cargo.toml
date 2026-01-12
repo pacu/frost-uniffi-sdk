@@ -28,7 +28,7 @@ zip32 = "0.1"
 zcash_address = { git = "https://github.com/pacu/librustzcash", rev = "be8444bde5494bfd3d3ab03953f5ef31ba976c4e" }
 
 # Other dependencies
-bip0039 = "0.12"
+bip0039 = "0.13"
 
 
 [features]
