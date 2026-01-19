@@ -3,7 +3,7 @@ members = ["uniffi-bindgen", "frost-uniffi-sdk"]
 resolver = "2"
 
 [workspace.dependencies]
-uniffi = "0.28.3"
+uniffi = "0.31.0"
 async-trait = "0.1.77"
 eyre = "0.6.12"
 frost-core = { version = "2.2", features = ["serde"] }
